@@ -1341,6 +1341,13 @@ const plugin = definePlugin({
 
           if (!text || !channelId) return;
 
+          // Resolve project mapping for this channel
+          const projectId = pluginConfig.channelProjectMap?.[channelId] ?? "";
+          let projectContext = "";
+          if (projectId) {
+            projectContext = `\n\nIMPORTANT: This message comes from a Slack channel mapped to Paperclip project ID "${projectId}". Any issues you create MUST be in this project.`;
+          }
+
           // Acknowledge in the thread
           await postMessage(pluginCtx, pluginToken, channelId, {
             text: `:hourglass_flowing_sand: Working on it...`,
@@ -1352,7 +1359,7 @@ const plugin = definePlugin({
               pluginConfig.ceoAgentId,
               companyId,
               {
-                prompt: `Slack user ${userId} asks: ${text}`,
+                prompt: `Slack user ${userId} asks: ${text}${projectContext}`,
                 reason: `Slack @mention from ${userId}`,
               },
             );

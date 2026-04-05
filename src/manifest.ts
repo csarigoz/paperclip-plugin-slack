@@ -65,6 +65,13 @@ const manifest: PaperclipPluginManifestV1 = {
         description: "The Paperclip agent ID that receives all @mentions. This agent triages and delegates to other agents.",
         default: DEFAULT_CONFIG.ceoAgentId,
       },
+      channelProjectMap: {
+        type: "object",
+        title: "Channel → Project Mapping",
+        description: "Maps Slack channel IDs to Paperclip project IDs. Format: {\"C01ABC\": \"project-uuid\"}. When a mention comes from a mapped channel, the agent is told to create issues in that project.",
+        default: DEFAULT_CONFIG.channelProjectMap,
+        additionalProperties: { type: "string" },
+      },
       defaultChannelId: {
         type: "string",
         title: "Default Slack Channel ID",

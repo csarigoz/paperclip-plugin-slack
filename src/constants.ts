@@ -39,6 +39,7 @@ export const DEFAULT_CONFIG = {
   slackTokenRef: "",
   slackSigningSecretRef: "",
   ceoAgentId: "",
+  channelProjectMap: {} as Record<string, string>,
   defaultChannelId: "",
   approvalsChannelId: "",
   errorsChannelId: "",
