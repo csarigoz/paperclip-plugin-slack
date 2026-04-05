@@ -38,6 +38,7 @@ export const STATE_KEYS = {
 export const DEFAULT_CONFIG = {
   slackTokenRef: "",
   slackSigningSecretRef: "",
+  ceoAgentId: "",
   defaultChannelId: "",
   approvalsChannelId: "",
   errorsChannelId: "",

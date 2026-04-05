@@ -1,6 +1,7 @@
 export type SlackConfig = {
   slackTokenRef: string;
   slackSigningSecretRef: string;
+  ceoAgentId: string;
   defaultChannelId: string;
   approvalsChannelId: string;
   errorsChannelId: string;

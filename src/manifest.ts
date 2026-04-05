@@ -59,6 +59,12 @@ const manifest: PaperclipPluginManifestV1 = {
         description: "Secret UUID for your Slack app's Signing Secret. Required to verify that incoming webhooks are genuinely from Slack.",
         default: DEFAULT_CONFIG.slackSigningSecretRef,
       },
+      ceoAgentId: {
+        type: "string",
+        title: "CEO Agent ID",
+        description: "The Paperclip agent ID that receives all @mentions. This agent triages and delegates to other agents.",
+        default: DEFAULT_CONFIG.ceoAgentId,
+      },
       defaultChannelId: {
         type: "string",
         title: "Default Slack Channel ID",

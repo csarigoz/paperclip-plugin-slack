@@ -57,6 +57,10 @@ let pluginToken: string;
 let pluginConfig: SlackConfig;
 let slackAdapter: SlackAdapter;
 
+// --- Run-to-thread tracking for @mention invocations ---
+
+const runToThread = new Map<string, { channelId: string; threadTs: string }>();
+
 // --- Slack signature verification ---
 
 let slackSigningSecret: string | null = null;
@@ -863,6 +867,33 @@ const plugin = definePlugin({
       });
     }
 
+    // --- @mention run completion: post agent output back to Slack thread ---
+    ctx.events.on("agent.run.finished", async (event: PluginEvent) => {
+      const payload = event.payload as Record<string, unknown>;
+      const runId = String(payload.runId ?? event.entityId ?? "");
+      const thread = runToThread.get(runId);
+      if (!thread) return;
+      runToThread.delete(runId);
+
+      const summary = String(payload.summary ?? payload.output ?? payload.result ?? "Agent run completed.");
+      await postMessage(ctx, token, thread.channelId, {
+        text: summary,
+      }, { threadTs: thread.threadTs });
+    });
+
+    ctx.events.on("agent.run.failed", async (event: PluginEvent) => {
+      const payload = event.payload as Record<string, unknown>;
+      const runId = String(payload.runId ?? event.entityId ?? "");
+      const thread = runToThread.get(runId);
+      if (!thread) return;
+      runToThread.delete(runId);
+
+      const error = String(payload.error ?? "Agent run failed.");
+      await postMessage(ctx, token, thread.channelId, {
+        text: `:warning: ${error}`,
+      }, { threadTs: thread.threadTs });
+    });
+
     if (config.notifyOnBudgetThreshold) {
       ctx.events.on("cost_event.created", async (event: PluginEvent) => {
         const payload = event.payload as Record<string, unknown>;
@@ -1281,10 +1312,13 @@ const plugin = definePlugin({
         return;
       }
 
-      // Handle file_shared events for Phase 3 media pipeline
+      // Handle event callbacks
       if (body?.type === "event_callback") {
         const event = body.event as Record<string, unknown> | undefined;
-        if (event?.type === "file_shared") {
+        if (!event) return;
+
+        // Handle file_shared events for Phase 3 media pipeline
+        if (event.type === "file_shared") {
           const companies = await pluginCtx.companies.list({ limit: 1, offset: 0 });
           const companyId = companies[0]?.id ?? "";
           const fileId = String(event.file_id ?? "");
@@ -1292,6 +1326,44 @@ const plugin = definePlugin({
 
           if (fileId && channelId) {
             await processMediaFile(pluginCtx, pluginToken, companyId, fileId, channelId, "");
+          }
+        }
+
+        // Handle @mentions — route to CEO agent
+        if (event.type === "app_mention" && pluginConfig.ceoAgentId) {
+          const companies = await pluginCtx.companies.list({ limit: 10, offset: 0 });
+          const activeCompany = companies.find((c) => c.status === "active");
+          const companyId = activeCompany?.id ?? companies[0]?.id ?? "";
+          const text = String(event.text ?? "").replace(/<@[A-Z0-9]+>/g, "").trim();
+          const channelId = String(event.channel ?? "");
+          const threadTs = String(event.thread_ts ?? event.ts ?? "");
+          const userId = String(event.user ?? "unknown");
+
+          if (!text || !channelId) return;
+
+          // Acknowledge in the thread
+          await postMessage(pluginCtx, pluginToken, channelId, {
+            text: `:hourglass_flowing_sand: Working on it...`,
+          }, { threadTs });
+
+          // Invoke the CEO agent
+          try {
+            const result = await pluginCtx.agents.invoke(
+              pluginConfig.ceoAgentId,
+              companyId,
+              {
+                prompt: `Slack user ${userId} asks: ${text}`,
+                reason: `Slack @mention from ${userId}`,
+              },
+            );
+
+            // Track run → thread so we can post the result back
+            runToThread.set(result.runId, { channelId, threadTs });
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            await postMessage(pluginCtx, pluginToken, channelId, {
+              text: `:x: Failed to invoke agent: ${msg}`,
+            }, { threadTs });
           }
         }
       }
